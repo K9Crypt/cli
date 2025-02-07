@@ -72,7 +72,7 @@ export async function decryptMessage(encryptedMessage) {
         const data = await response.text();
         return data;
     } catch (error) {
-        spinner.fail('Failed to decrypt message!');
+        spinner.fail('Failed to decrypt message!'); // spinner is not defined
         console.error(chalk.red('\nError:'), error.message);
         throw error;
     }
@@ -93,7 +93,7 @@ export async function joinRoom(roomId, userId, password) {
         const data = await response.json();
 
         if (!response.ok) {
-            throw new Error(data.error || 'An error occurred while joining the room');
+            throw new Error(data.error || 'Failed to join room');
         }
 
         spinner.succeed('Joined room successfully!');
@@ -119,9 +119,8 @@ export async function leaveRoom(roomId, userId) {
         });
 
         const data = await response.json();
-
         if (!response.ok) {
-            throw new Error(data.error || 'An error occurred while leaving the room');
+            throw new Error(data.error || 'Failed to leave room'); // what if data.error is undefined?
         }
 
         spinner.succeed('Left room successfully!');
@@ -194,7 +193,7 @@ export async function sendMessage(roomId, userId, message) {
         const data = await response.json();
 
         if (!response.ok) {
-            throw new Error(data.error || 'An error occurred while sending the message');
+            throw new Error(data.error || 'Failed to send message');
         }
 
         spinner.succeed('Message sent successfully!');
@@ -207,6 +206,12 @@ export async function sendMessage(roomId, userId, message) {
 }
 
 export async function startChat(roomId) {
+    const roomData = store.getRoomData(roomId);
+    if (!roomData || !roomData.active) {
+        console.error(chalk.red('\nYou must join the room before starting the chat.'));
+        return;
+    }
+
     const INITIAL_POLL_INTERVAL = 1000;
     const MAX_POLL_INTERVAL = 5000;
     const BACKOFF_RATE = 1.5;
@@ -285,7 +290,7 @@ export async function startChat(roomId) {
 
     const screen = blessed.screen({
         smartCSR: true,
-        title: 'K9crypt Chat',
+        title: 'K9Crypt Chat',
         fullUnicode: true,
     });
 
@@ -344,7 +349,7 @@ export async function startChat(roomId) {
             updateStatus(errorMessage, 'error');
             return true;
         }
-        return false;
+        return false; // handleApiError Doesn't Return a Promise
     };
 
     const fetchMessages = async () => {
@@ -405,7 +410,7 @@ export async function startChat(roomId) {
 
     const startPolling = () => {
         if (!state.isPolling) return;
-
+        // startPolling calls itself recursively without awaiting fetchMessages
         fetchMessages().finally(() => {
             if (state.isPolling) {
                 setTimeout(startPolling, state.pollInterval);
@@ -443,22 +448,22 @@ export async function startChat(roomId) {
     };
 
     const debouncedSendMessage = (text) => {
+        // debouncedSendMessage Doesn't Prevent Multiple Rapid Submissions
         clearTimeout(state.typingTimeout);
         state.typingTimeout = setTimeout(() => {
             sendMessage(text);
         }, DEBOUNCE_TIME);
     };
 
-    inputBox.on('submit', debouncedSendMessage);
+    inputBox.key('enter', () => {
+        debouncedSendMessage(inputBox.getValue());
+    });
 
-    screen.key(['q', 'C-c'], () => {
-        state.isPolling = false;
-        screen.destroy();
+    screen.key(['escape', 'q', 'C-c'], () => {
         process.exit(0);
     });
 
-    updateStatus('Connecting to chat...', 'info');
-    await fetchMessages();
-    startPolling();
+    screen.render();
     inputBox.focus();
-};
+    startPolling();
+}

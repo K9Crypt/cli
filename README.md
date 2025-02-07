@@ -1,4 +1,4 @@
-![Banner](https://www.upload.ee/image/17719902/k9crypt-cli.png)
+![Banner](https://www.upload.ee/image/17719987/k9crypt-cli.png)
 
 <div align="center">
 

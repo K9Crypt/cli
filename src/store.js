@@ -91,7 +91,6 @@ export class Store {
         return this.saveFile(this.paths.settings, this.data.settings);
     }
 
-    // Clear methods
     clearRoomData() {
         this.data.rooms = {};
         return this.saveFile(this.paths.roomData, this.data.rooms);

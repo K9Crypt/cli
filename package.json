@@ -1,6 +1,6 @@
 {
   "name": "k9crypt-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Command-line tool that provides a secure and encrypted real-time chat experience. It ensures secure communication with end-to-end encryption, private/public room options, different room lifetimes, and a user-friendly interface.",
   "main": "index.js",
   "type": "module",
