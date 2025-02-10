@@ -217,7 +217,7 @@ export async function startChat(roomId) {
     const BACKOFF_RATE = 1.5;
     const DEBOUNCE_TIME = 200;
     const MAX_MESSAGE_CACHE_SIZE = 1000;
-    const MESSAGE_BATCH_SIZE = 10;
+    // const MESSAGE_BATCH_SIZE = 10; // Not used anymore, we use Promise.all
 
     function createMessageBox() {
         return blessed.box({
@@ -283,9 +283,7 @@ export async function startChat(roomId) {
         isPolling: true,
         messageCache: new Map(),
         pollInterval: INITIAL_POLL_INTERVAL,
-        maxPollInterval: MAX_POLL_INTERVAL,
-        backoffRate: BACKOFF_RATE,
-        typingTimeout: null,
+        typingTimeout: null,  // Used for debouncing send message
     };
 
     const screen = blessed.screen({
@@ -318,17 +316,18 @@ export async function startChat(roomId) {
     };
 
     const appendMessage = (message) => {
-        if (state.messageCache.has(message.id)) return;
+        if (!message || !message.id || state.messageCache.has(message.id)) return;
 
         const date = new Date(message.timestamp).toLocaleTimeString();
         const formattedMessage = `{cyan-fg}[${date}] ${message.userId}:{/cyan-fg} ${message.decryptedMessage}`;
 
         messageBox.pushLine(formattedMessage);
-        messageBox.setScrollPerc(100);
+        messageBox.setScrollPerc(100); // Scroll to the bottom
         screen.render();
 
         state.messageCache.set(message.id, message);
 
+        // Limit the size of the message cache
         if (state.messageCache.size > MAX_MESSAGE_CACHE_SIZE) {
             const firstKey = state.messageCache.keys().next().value;
             state.messageCache.delete(firstKey);
@@ -338,18 +337,16 @@ export async function startChat(roomId) {
     const handleApiError = async (response, defaultMessage) => {
         if (!response.ok) {
             let errorMessage = defaultMessage;
-            if (response.status === 404) {
-                errorMessage = 'Room not found.';
-            } else if (response.status === 401) {
-                errorMessage = 'Unauthorized. Check your room password.';
-            } else {
+            try {
                 const errorText = await response.text();
                 errorMessage = `Server error: ${response.status} - ${errorText || response.statusText}`;
+            } catch (e) {
+                errorMessage = `Server error: ${response.status} - ${defaultMessage}`;
             }
             updateStatus(errorMessage, 'error');
             return true;
         }
-        return false; // handleApiError Doesn't Return a Promise
+        return false;
     };
 
     const fetchMessages = async () => {
@@ -370,52 +367,66 @@ export async function startChat(roomId) {
             const data = await response.json();
 
             if (data.messages?.length > 0) {
-                const decryptedMessages = [];
+                // Decrypt messages concurrently using Promise.all
+                const decryptedMessages = await Promise.all(
+                    data.messages.map(async (msg) => {
+                        if (state.messageCache.has(msg.id)) {
+                            return null;
+                        }
+                        try {
+                            const decryptedMessage = await decryptMessage(msg.message);
+                            return { ...msg, decryptedMessage };
+                        } catch (decryptionError) {
+                            updateStatus(`Decryption error: ${decryptionError.message}`, 'error');
+                            return null;
+                        }
+                    })
+                );
 
-                for (let i = 0; i < data.messages.length; i += MESSAGE_BATCH_SIZE) {
-                    const batch = data.messages.slice(i, i + MESSAGE_BATCH_SIZE);
-                    try {
-                        const decryptedBatch = await Promise.all(
-                            batch.map(async (msg) => {
-                                if (state.messageCache.has(msg.id)) {
-                                    return null;
-                                }
-                                const decryptedMessage = await decryptMessage(msg.message);
-                                return { ...msg, decryptedMessage };
-                            })
-                        );
-                        decryptedMessages.push(...decryptedBatch.filter(msg => msg !== null));
+                // Filter out null values (failed decryptions or cached messages) and append
+                decryptedMessages.filter(msg => msg !== null).forEach(appendMessage);
 
-                    } catch (decryptionError) {
-                        updateStatus(`Decryption error: ${decryptionError.message}`, 'error');
-                    }
-                }
-
-                decryptedMessages.forEach(appendMessage);
-
+                // Update lastMessageId only if we have new messages
                 if (decryptedMessages.length > 0) {
-                    state.lastMessageId = decryptedMessages[decryptedMessages.length - 1].id;
+                    // Use the ID from the original message data, not the decrypted one
+                    state.lastMessageId = data.messages[data.messages.length - 1].id;
                 }
                 resetPollInterval();
             } else {
+                // Increase poll interval using exponential backoff
                 state.pollInterval = Math.min(
-                    state.pollInterval * state.backoffRate,
-                    state.maxPollInterval
+                    state.pollInterval * BACKOFF_RATE,
+                    MAX_POLL_INTERVAL
                 );
             }
         } catch (error) {
             updateStatus(`Connection error: ${error.message}`, 'error');
+            // Backoff even on connection errors
+            state.pollInterval = Math.min(
+                state.pollInterval * BACKOFF_RATE,
+                MAX_POLL_INTERVAL
+            );
         }
     };
 
-    const startPolling = () => {
+    let pollTimeoutId = null; // Store the timeout ID
+
+    const startPolling = async () => {
         if (!state.isPolling) return;
-        // startPolling calls itself recursively without awaiting fetchMessages
-        fetchMessages().finally(() => {
-            if (state.isPolling) {
-                setTimeout(startPolling, state.pollInterval);
+        
+        const poll = async () => {
+            if (!state.isPolling) return;  // Additional check
+            try {
+                await fetchMessages();
+            } catch (error) {
+                updateStatus(`Polling error: ${error.message}`, 'error');
+            } finally {
+                if (state.isPolling) {
+                    pollTimeoutId = setTimeout(poll, state.pollInterval);
+                }
             }
-        });
+        };
+        await poll();
     };
 
     const sendMessage = async (text) => {
@@ -441,25 +452,32 @@ export async function startChat(roomId) {
         } catch (error) {
             updateStatus(`Failed to send message: ${error.message}`, 'error');
         } finally {
+            // Always clear the input box and refocus, even on error
             inputBox.clearValue();
             screen.render();
             inputBox.focus();
         }
     };
 
+    let typingTimeout = null;
     const debouncedSendMessage = (text) => {
-        // debouncedSendMessage Doesn't Prevent Multiple Rapid Submissions
-        clearTimeout(state.typingTimeout);
-        state.typingTimeout = setTimeout(() => {
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
             sendMessage(text);
         }, DEBOUNCE_TIME);
     };
+
 
     inputBox.key('enter', () => {
         debouncedSendMessage(inputBox.getValue());
     });
 
     screen.key(['escape', 'q', 'C-c'], () => {
+        state.isPolling = false;
+        clearTimeout(pollTimeoutId);
+        clearTimeout(typingTimeout);
+        clearTimeout(state.typingTimeout);
+        screen.destroy();
         process.exit(0);
     });
 

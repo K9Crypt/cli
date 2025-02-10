@@ -16,7 +16,7 @@ const store = new Store({
 });
 
 program
-    .version('0.0.1')
+    .version('0.1.2')
     .description('A CLI tool for K9Crypt, offering encrypted real-time chat rooms, message encryption/decryption, and room management.');
 
 program
