@@ -72,7 +72,6 @@ export async function decryptMessage(encryptedMessage) {
         const data = await response.text();
         return data;
     } catch (error) {
-        spinner.fail('Failed to decrypt message!'); // spinner is not defined
         console.error(chalk.red('\nError:'), error.message);
         throw error;
     }
@@ -120,7 +119,7 @@ export async function leaveRoom(roomId, userId) {
 
         const data = await response.json();
         if (!response.ok) {
-            throw new Error(data.error || 'Failed to leave room'); // what if data.error is undefined?
+            throw new Error(data.error || 'Failed to leave room');
         }
 
         spinner.succeed('Left room successfully!');
@@ -206,282 +205,287 @@ export async function sendMessage(roomId, userId, message) {
 }
 
 export async function startChat(roomId) {
-    const roomData = store.getRoomData(roomId);
+    const roomData = store.getRoomData(roomId)
     if (!roomData || !roomData.active) {
-        console.error(chalk.red('\nYou must join the room before starting the chat.'));
-        return;
+        console.error(chalk.red('\nYou must join the room before starting the chat.'))
+        return
     }
 
-    const INITIAL_POLL_INTERVAL = 1000;
-    const MAX_POLL_INTERVAL = 5000;
-    const BACKOFF_RATE = 1.5;
-    const DEBOUNCE_TIME = 200;
-    const MAX_MESSAGE_CACHE_SIZE = 1000;
-    // const MESSAGE_BATCH_SIZE = 10; // Not used anymore, we use Promise.all
+    const INITIAL_POLL_INTERVAL = 100
+    const MAX_POLL_INTERVAL = 500
+    const BACKOFF_RATE = 1.1
+    const MAX_MESSAGE_CACHE_SIZE = 1000
 
     function createMessageBox() {
         return blessed.box({
-            top: 0,
-            left: 0,
-            height: '90%',
-            width: '100%',
-            tags: true,
-            scrollable: true,
-            alwaysScroll: true,
-            mouse: true,
-            keys: true,
-            vi: true,
-            scrollbar: {
-                ch: ' ',
-                track: { bg: 'cyan' },
-                style: { inverse: true },
-            },
-            border: { type: 'line' },
-            style: {
-                fg: 'white',
-                border: { fg: '#f0f0f0' },
-            },
-        });
+        top: 0,
+        left: 0,
+        height: '90%',
+        width: '100%',
+        scrollable: true,
+        alwaysScroll: true,
+        mouse: false,
+        keys: true,
+        vi: true,
+        tags: true,
+        style: { fg: 'white' }
+        })
     }
 
     function createStatusBox() {
         return blessed.box({
-            bottom: '10%',
-            left: 0,
-            height: '10%',
-            width: '100%',
-            tags: true,
-            border: { type: 'line' },
-            style: {
-                fg: 'yellow',
-                border: { fg: '#f0f0f0' },
-            },
-        });
+        bottom: '10%',
+        left: 0,
+        height: '10%',
+        width: '100%',
+        tags: false,
+        style: { fg: 'yellow' }
+        })
     }
 
     function createInputBox() {
         return blessed.textbox({
-            bottom: 0,
-            left: 0,
-            height: '10%',
-            width: '100%',
-            keys: true,
-            mouse: true,
-            inputOnFocus: true,
-            padding: { top: 1, left: 2 },
-            border: { type: 'line' },
-            style: {
-                fg: 'white',
-                border: { fg: '#f0f0f0' },
-                focus: { border: { fg: 'green' } },
-            },
-        });
+        bottom: 0,
+        left: 0,
+        height: '10%',
+        width: '100%',
+        keys: true,
+        mouse: false,
+        inputOnFocus: true,
+        padding: { left: 1 },
+        border: { type: 'line', fg: 'white' },
+        style: { fg: 'white', bg: 'transparent' }
+        })
     }
 
     const state = {
         lastMessageId: null,
         isPolling: true,
         messageCache: new Map(),
-        pollInterval: INITIAL_POLL_INTERVAL,
-        typingTimeout: null,  // Used for debouncing send message
-    };
+        pollInterval: INITIAL_POLL_INTERVAL
+    }
 
     const screen = blessed.screen({
         smartCSR: true,
         title: 'K9Crypt Chat',
-        fullUnicode: true,
-    });
+        fullUnicode: true
+    })
 
-    const messageBox = createMessageBox();
-    const statusBox = createStatusBox();
-    const inputBox = createInputBox();
+    const messageBox = createMessageBox()
+    const statusBox = createStatusBox()
+    const inputBox = createInputBox()
 
-    screen.append(messageBox);
-    screen.append(statusBox);
-    screen.append(inputBox);
+    screen.append(messageBox)
+    screen.append(statusBox)
+    screen.append(inputBox)
 
     const updateStatus = (message, type = 'info') => {
-        const statusContent = {
-            info: `{yellow-fg}${message}{/yellow-fg}`,
-            error: `{red-fg}${message}{/red-fg}`,
-            success: `{green-fg}${message}{/green-fg}`,
-        }[type] || message;
-
-        statusBox.setContent(statusContent);
-        screen.render();
-    };
+        statusBox.setContent(message)
+        screen.render()
+    }
 
     const resetPollInterval = () => {
-        state.pollInterval = INITIAL_POLL_INTERVAL;
-    };
+        state.pollInterval = INITIAL_POLL_INTERVAL
+    }
 
     const appendMessage = (message) => {
-        if (!message || !message.id || state.messageCache.has(message.id)) return;
+        if (!message || !message.id || state.messageCache.has(message.id)) return
+    
+        const date = new Date(message.timestamp).toLocaleTimeString()
+        let formattedMessage
 
-        const date = new Date(message.timestamp).toLocaleTimeString();
-        const formattedMessage = `{cyan-fg}[${date}] ${message.userId}:{/cyan-fg} ${message.decryptedMessage}`;
-
-        messageBox.pushLine(formattedMessage);
-        messageBox.setScrollPerc(100); // Scroll to the bottom
-        screen.render();
-
-        state.messageCache.set(message.id, message);
-
-        // Limit the size of the message cache
-        if (state.messageCache.size > MAX_MESSAGE_CACHE_SIZE) {
-            const firstKey = state.messageCache.keys().next().value;
-            state.messageCache.delete(firstKey);
+        if (message.userId === 'System') {
+            formattedMessage = `{yellow-fg}[${date}] System: ${message.decryptedMessage}{/yellow-fg}`
+        } else {
+            formattedMessage = `{magenta-fg}[${date}] ${message.userId}{/magenta-fg}: ${message.decryptedMessage}`
         }
-    };
+
+        messageBox.pushLine(formattedMessage)
+        messageBox.setScrollPerc(100)
+        screen.render()
+        state.messageCache.set(message.id, message)
+
+        if (state.messageCache.size > MAX_MESSAGE_CACHE_SIZE) {
+            const firstKey = state.messageCache.keys().next().value
+            state.messageCache.delete(firstKey)
+        }
+    }
 
     const handleApiError = async (response, defaultMessage) => {
         if (!response.ok) {
-            let errorMessage = defaultMessage;
-            try {
-                const errorText = await response.text();
-                errorMessage = `Server error: ${response.status} - ${errorText || response.statusText}`;
-            } catch (e) {
-                errorMessage = `Server error: ${response.status} - ${defaultMessage}`;
-            }
-            updateStatus(errorMessage, 'error');
-            return true;
+        let errorMessage = defaultMessage
+        try {
+            const errorText = await response.text()
+            errorMessage = `Server error: ${response.status} - ${errorText || response.statusText}`
+        } catch (e) {
+            errorMessage = `Server error: ${response.status} - ${defaultMessage}`
         }
-        return false;
-    };
+        updateStatus(errorMessage, 'error')
+        return true
+        }
+        return false
+    }
 
     const fetchMessages = async () => {
         try {
-            const response = await fetch(
-                `${API_URL}/room/${roomId}/messages?after=${state.lastMessageId || ''}`,
-                {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Cache-Control': 'no-cache',
-                    },
-                }
-            );
-
-            if (await handleApiError(response, 'Failed to fetch messages.')) return;
-
-            const data = await response.json();
-
-            if (data.messages?.length > 0) {
-                // Decrypt messages concurrently using Promise.all
-                const decryptedMessages = await Promise.all(
-                    data.messages.map(async (msg) => {
-                        if (state.messageCache.has(msg.id)) {
-                            return null;
-                        }
-                        try {
-                            const decryptedMessage = await decryptMessage(msg.message);
-                            return { ...msg, decryptedMessage };
-                        } catch (decryptionError) {
-                            updateStatus(`Decryption error: ${decryptionError.message}`, 'error');
-                            return null;
-                        }
-                    })
-                );
-
-                // Filter out null values (failed decryptions or cached messages) and append
-                decryptedMessages.filter(msg => msg !== null).forEach(appendMessage);
-
-                // Update lastMessageId only if we have new messages
-                if (decryptedMessages.length > 0) {
-                    // Use the ID from the original message data, not the decrypted one
-                    state.lastMessageId = data.messages[data.messages.length - 1].id;
-                }
-                resetPollInterval();
-            } else {
-                // Increase poll interval using exponential backoff
-                state.pollInterval = Math.min(
-                    state.pollInterval * BACKOFF_RATE,
-                    MAX_POLL_INTERVAL
-                );
+        const response = await fetch(`${API_URL}/room/${roomId}/messages?after=${state.lastMessageId || ''}`, {
+            method: 'GET',
+            headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache'
             }
-        } catch (error) {
-            updateStatus(`Connection error: ${error.message}`, 'error');
-            // Backoff even on connection errors
-            state.pollInterval = Math.min(
-                state.pollInterval * BACKOFF_RATE,
-                MAX_POLL_INTERVAL
-            );
-        }
-    };
+        })
+        if (await handleApiError(response, 'Failed to fetch messages.')) return
+        const data = await response.json()
 
-    let pollTimeoutId = null; // Store the timeout ID
+        if (data.messages && data.messages.length > 0) {
+            const messages = await Promise.all(data.messages.map(async (msg) => {
+            if (state.messageCache.has(msg.id)) return null
+            try {
+                const decryptedMessage = await decryptMessage(msg.message)
+                return { ...msg, decryptedMessage }
+            } catch (error) {
+                updateStatus(`Decryption error: ${error.message}`, 'error')
+                return null
+            }
+            }))
+            messages.filter(msg => msg !== null).forEach(appendMessage)
+            if (data.messages.length > 0) {
+            state.lastMessageId = data.messages[data.messages.length - 1].id
+            }
+            resetPollInterval()
+        } else {
+            state.pollInterval = Math.min(state.pollInterval * BACKOFF_RATE, MAX_POLL_INTERVAL)
+        }
+        } catch (error) {
+        updateStatus(`Connection error: ${error.message}`, 'error')
+        state.pollInterval = Math.min(state.pollInterval * BACKOFF_RATE, MAX_POLL_INTERVAL)
+        }
+    }
+
+    let pollTimeoutId = null
 
     const startPolling = async () => {
-        if (!state.isPolling) return;
-        
-        const poll = async () => {
-            if (!state.isPolling) return;  // Additional check
-            try {
-                await fetchMessages();
-            } catch (error) {
-                updateStatus(`Polling error: ${error.message}`, 'error');
-            } finally {
-                if (state.isPolling) {
-                    pollTimeoutId = setTimeout(poll, state.pollInterval);
-                }
-            }
-        };
-        await poll();
-    };
+        if (!state.isPolling) return
 
-    const sendMessage = async (text) => {
-        const trimmedText = text.trim();
-        if (!trimmedText) return;
+        const poll = async () => {
+        if (!state.isPolling) return
+        try {
+            await fetchMessages()
+        } catch (error) {
+            updateStatus(`Polling error: ${error.message}`, 'error')
+        } finally {
+            if (state.isPolling) {
+            pollTimeoutId = setTimeout(poll, state.pollInterval)
+            }
+        }
+        }
+        await poll()
+    }
+
+    const sendMessage_ = async (text) => {
+        const trimmedText = text.trim()
+        if (!trimmedText) return
+
+        if (trimmedText.startsWith('/')) {
+            switch (trimmedText) {
+                case '/help':
+                    const helpMessage = [
+                        '',
+                        '{green-fg}Available Commands:{/green-fg}',
+                        '{cyan-fg}/help{/cyan-fg} - Show this help message',
+                        '{cyan-fg}/quit{/cyan-fg} - Leave the room and close chat',
+                        '{cyan-fg}/refresh{/cyan-fg} - Refresh the chat',
+                        '',
+                        '{blue-fg}Info: This message is only visible to you.{/blue-fg}'
+                    ].join('\n')
+                    messageBox.pushLine(helpMessage)
+                    messageBox.setScrollPerc(100)
+                    screen.render()
+                    inputBox.clearValue()
+                    screen.render()
+                    inputBox.focus()
+                    return
+
+                case '/refresh':
+                    try {
+                        updateStatus('Refreshing messages...', 'info')
+                        state.messageCache.clear()
+                        state.lastMessageId = null
+                        messageBox.setContent('')
+                        screen.render()
+                        await fetchMessages()
+                        updateStatus('Messages refreshed', 'info')
+                    } catch (error) {
+                        updateStatus(`Failed to refresh messages: ${error.message}`, 'error')
+                    } finally {
+                        inputBox.clearValue()
+                        screen.render()
+                        inputBox.focus()
+                    }
+                    return
+
+                case '/quit':
+                    try {
+                        await leaveRoom(roomId, store.getUserData('userId'))
+                        state.isPolling = false
+                        clearTimeout(pollTimeoutId)
+                        screen.destroy()
+                        process.exit(0)
+                    } catch (error) {
+                        updateStatus(`Failed to leave room: ${error.message}`, 'error')
+                    }
+                    return
+            }
+        }
+
+        if (trimmedText === '/quit') {
+            try {
+                await leaveRoom(roomId, store.getUserData('userId'))
+                state.isPolling = false
+                clearTimeout(pollTimeoutId)
+                screen.destroy()
+                process.exit(0)
+            } catch (error) {
+                updateStatus(`Failed to leave room: ${error.message}`, 'error')
+            }
+            return
+        }
 
         try {
-            updateStatus('Sending message...', 'info');
+            updateStatus('Sending message...', 'info')
             const response = await fetch(`${API_URL}/room/message`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     roomId,
                     userId: store.getUserData('userId'),
-                    message: trimmedText,
-                }),
-            });
-
-            if (await handleApiError(response, 'Failed to send message.')) return;
-
-            updateStatus('Message sent', 'success');
-            resetPollInterval();
+                    message: trimmedText
+                })
+            })
+            if (await handleApiError(response, 'Failed to send message.')) return
+            updateStatus('Message sent', 'info')
+            resetPollInterval()
         } catch (error) {
-            updateStatus(`Failed to send message: ${error.message}`, 'error');
+            updateStatus(`Failed to send message: ${error.message}`, 'error')
         } finally {
-            // Always clear the input box and refocus, even on error
-            inputBox.clearValue();
-            screen.render();
-            inputBox.focus();
+            inputBox.clearValue()
+            screen.render()
+            inputBox.focus()
         }
-    };
-
-    let typingTimeout = null;
-    const debouncedSendMessage = (text) => {
-        clearTimeout(typingTimeout);
-        typingTimeout = setTimeout(() => {
-            sendMessage(text);
-        }, DEBOUNCE_TIME);
-    };
-
-
+    }
     inputBox.key('enter', () => {
-        debouncedSendMessage(inputBox.getValue());
-    });
+        sendMessage_(inputBox.getValue())
+    })
 
     screen.key(['escape', 'q', 'C-c'], () => {
-        state.isPolling = false;
-        clearTimeout(pollTimeoutId);
-        clearTimeout(typingTimeout);
-        clearTimeout(state.typingTimeout);
-        screen.destroy();
-        process.exit(0);
-    });
+        state.isPolling = false
+        clearTimeout(pollTimeoutId)
+        screen.destroy()
+        process.exit(0)
+    })
 
-    screen.render();
-    inputBox.focus();
-    startPolling();
+    screen.render()
+    inputBox.focus()
+    startPolling()
 }

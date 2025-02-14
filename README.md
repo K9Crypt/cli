@@ -14,9 +14,24 @@
 Transform your terminal into a fortress of secure communication.
 End-to-end encrypted chat rooms at your fingertips.
 
-[Installation](#installation) • [Features](#features) • [Quick Start](#quick-start) • [Documentation](#documentation)
-
 </div>
+
+## 🧭 Updates
+
+### v0.1.3
+- Added new chat slash commands:
+  - `/help` - Shows available commands with descriptions
+  - `/refresh` - Reloads all messages in current chat
+  - `/quit` - Leaves room and closes chat gracefully
+- Enhanced message display:
+  - System messages now appear in yellow for better visibility
+  - Help command info shows in blue
+- Added user ID customization:
+  - New command: `k9crypt set-username <userId>`
+  - Users can now set their own display names
+- Added new data management commands:
+  - `k9crypt clear` - Clears all stored data
+  - `k9crypt clear -y` - Skips confirmation prompt when clearing data
 
 ## ✨ Features
 
@@ -34,6 +49,11 @@ End-to-end encrypted chat rooms at your fingertips.
 npm install -g k9crypt-cli
 ```
 
+### Set Username
+```bash
+k9crypt set-username JohnDoe # optional, but recommended
+```
+
 ### Create Your First Room
 ```bash
 k9crypt create secret-room private mypassword -l day
@@ -48,6 +68,16 @@ k9crypt chat 550e8400-e29b-41d4-a716-446655440000 # room id
 
 
 ## 📖 Documentation
+
+### Chat Commands
+
+While in an active chat session, you can use the following slash commands:
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Display available commands and usage information |
+| `/quit` | Leave the current room and close chat |
+| `/refresh` | Reload all messages in the current chat |
 
 ### Room Management
 
@@ -81,6 +111,14 @@ k9crypt send <room-name> <message>
 Start interactive chat:
 ```bash
 k9crypt chat <room-id>
+```
+
+## 🗄️ Data Management
+
+Clear all stored data:
+```bash
+k9crypt clear           # With confirmation prompt
+k9crypt clear -y        # Skip confirmation
 ```
 
 ## 🏗️ Room Configuration

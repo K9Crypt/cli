@@ -10,13 +10,15 @@ import {
     sendMessage,
     startChat
 } from './src/services.js';
+import ora from 'ora';
+import inquirer from 'inquirer';
 
 const store = new Store({
     name: 'k9crypt'
 });
 
 program
-    .version('0.1.2')
+    .version('0.1.3')
     .description('A CLI tool for K9Crypt, offering encrypted real-time chat rooms, message encryption/decryption, and room management.');
 
 program
@@ -143,6 +145,45 @@ program
             await startChat(id);
         } catch (error) {
             console.error(chalk.red('Error starting chat:', error.message));
+            process.exit(1);
+        }
+    });
+
+program
+    .command('set-username <userId>')
+    .description('Set your user ID')
+    .action((userId) => {
+        const spinner = ora('Setting user ID...').start();
+        store.setUserData('userId', userId);
+        spinner.succeed('User ID set successfully!');
+    });
+
+program
+    .command('clear')
+    .description('Clear all stored data including rooms, user data, and settings')
+    .option('-y, --yes', 'Skip confirmation')
+    .action(async (options) => {
+        if (!options.yes) {
+            const confirm = await inquirer.prompt([{
+                type: 'confirm',
+                name: 'proceed',
+                message: chalk.yellow('This will delete all stored data. Are you sure?'),
+                default: false
+            }]);
+
+            if (!confirm.proceed) {
+                console.log(chalk.blue('Operation cancelled'));
+                process.exit(0);
+            }
+        }
+
+        const spinner = ora('Clearing all data...').start();
+        
+        try {
+            await store.clearAll();
+            spinner.succeed(chalk.green('All data cleared successfully'));
+        } catch (error) {
+            spinner.fail(chalk.red('Failed to clear data:', error.message));
             process.exit(1);
         }
     });
