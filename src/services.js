@@ -135,10 +135,12 @@ export async function leaveRoom(roomId, userId) {
     }
 }
 
-export async function listRooms() {
+export async function listRooms(queryParams = {}) {
     const spinner = ora('Listing rooms...').start();
 
     try {
+        const { type, minUsers, sort, page = 1, limit = 20 } = queryParams;
+
         const response = await fetch(`${API_URL}/room/list`, {
             method: 'GET',
             headers: {
@@ -153,21 +155,71 @@ export async function listRooms() {
         const data = await response.json();
         spinner.succeed('Rooms listed successfully!');
 
-        const rooms = data.rooms || [];
-        if (rooms.length === 0) {
-            console.log(chalk.yellow('\nNo rooms have been created yet.'));
+        let rooms = data.rooms || [];
+
+        if (type && ['public', 'private'].includes(type)) {
+            rooms = rooms.filter(room => room.type === type);
+        }
+
+        if (minUsers) {
+            const validatedMinUsers = Math.max(1, parseInt(minUsers) || 1);
+            rooms = rooms.filter(room => room.userCount >= validatedMinUsers);
+        }
+
+        const validSortOptions = ['users', 'messages', 'newest', 'activity'];
+        if (sort && validSortOptions.includes(sort)) {
+            switch (sort) {
+                case 'users':
+                    rooms.sort((a, b) => b.userCount - a.userCount);
+                    break;
+                case 'messages':
+                    rooms.sort((a, b) => b.messageCount - a.messageCount);
+                    break;
+                case 'newest':
+                    rooms.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                    break;
+                case 'activity':
+                    rooms.sort((a, b) => new Date(b.lastActivity) - new Date(a.lastActivity));
+                    break;
+            }
+        }
+
+        const pageNum = Math.max(1, parseInt(page));
+        const limitNum = Math.min(50, Math.max(1, parseInt(limit)));
+        const startIndex = (pageNum - 1) * limitNum;
+        const endIndex = startIndex + limitNum;
+        const paginatedRooms = rooms.slice(startIndex, endIndex);
+
+        if (paginatedRooms.length === 0) {
+            console.log(chalk.yellow('\nNo rooms found matching the criteria.'));
         } else {
             console.log(chalk.green('\nAvailable Rooms:'));
-            rooms.forEach(room => {
+            paginatedRooms.forEach(room => {
                 console.log(chalk.cyan('\nRoom ID:'), room.id);
                 console.log(chalk.cyan('Room Name:'), room.roomName);
                 console.log(chalk.cyan('Type:'), room.type === 'public' ? 'Public' : 'Private');
                 console.log(chalk.cyan('User Count:'), room.userCount || 0);
                 console.log(chalk.cyan('Expires At:'), room.expiresAt || 'Permanent');
             });
+
+            console.log(chalk.yellow('\nPagination:'));
+            console.log(chalk.yellow('Page:'), pageNum);
+            console.log(chalk.yellow('Limit:'), limitNum);
+            console.log(chalk.yellow('Total Rooms:'), rooms.length);
+            console.log(chalk.yellow('Total Pages:'), Math.ceil(rooms.length / limitNum));
         }
 
-        return rooms;
+
+        return {
+            rooms: paginatedRooms,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total: rooms.length,
+                totalPages: Math.ceil(rooms.length / limitNum)
+            }
+        };
+
     } catch (error) {
         spinner.fail('An error occurred while listing rooms!');
         console.error(chalk.red('\nError:'), error.message);

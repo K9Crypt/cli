@@ -6,10 +6,10 @@
 
 🔐 **Secure. Private. Real-time.**
 
-[![npm version](https://img.shields.io/npm/v/k9crypt-cli.svg?style=flat-square)](https://www.npmjs.org/package/k9crypt-cli)
-[![npm downloads](https://img.shields.io/npm/dm/k9crypt-cli.svg?style=flat-square)](https://npm-stat.com/charts.html?package=k9crypt-cli)
-[![GitHub license](https://img.shields.io/github/license/k9crypt/k9crypt-cli?style=flat-square)](https://github.com/k9crypt/k9crypt-cli/blob/main/LICENSE)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://github.com/k9crypt/k9crypt-cli/pulls)
+[![npm version](https://img.shields.io/npm/v/k9cli.svg?style=flat-square)](https://www.npmjs.org/package/k9cli)
+[![npm downloads](https://img.shields.io/npm/dm/k9cli.svg?style=flat-square)](https://npm-stat.com/charts.html?package=k9cli)
+[![GitHub license](https://img.shields.io/github/license/k9crypt/k9cli?style=flat-square)](https://github.com/k9crypt/k9cli/blob/main/LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://github.com/k9crypt/k9cli/pulls)
 
 Transform your terminal into a fortress of secure communication.
 End-to-end encrypted chat rooms at your fingertips.
@@ -18,20 +18,8 @@ End-to-end encrypted chat rooms at your fingertips.
 
 ## 🧭 Updates
 
-### v0.1.3
-- Added new chat slash commands:
-  - `/help` - Shows available commands with descriptions
-  - `/refresh` - Reloads all messages in current chat
-  - `/quit` - Leaves room and closes chat gracefully
-- Enhanced message display:
-  - System messages now appear in yellow for better visibility
-  - Help command info shows in blue
-- Added user ID customization:
-  - New command: `k9crypt set-username <userId>`
-  - Users can now set their own display names
-- Added new data management commands:
-  - `k9crypt clear` - Clears all stored data
-  - `k9crypt clear -y` - Skips confirmation prompt when clearing data
+### v0.1.5
+- Added detailed room filtering feature.
 
 ## ✨ Features
 
@@ -46,7 +34,7 @@ End-to-end encrypted chat rooms at your fingertips.
 
 ### Installation
 ```bash
-npm install -g k9crypt-cli
+npm install -g k9cli
 ```
 
 ### Set Username
@@ -98,7 +86,7 @@ k9crypt leave <room-name>
 
 View available rooms:
 ```bash
-k9crypt list
+k9crypt list [-t|--type <type>] [-m|--minUsers <minUsers>] [-s|--sort <sort>] [-p|--page <page>] [-l|--limit <limit>]
 ```
 
 ### Messaging
@@ -149,10 +137,10 @@ Get started with development in three simple steps:
 
 ```bash
 # Clone the repository
-git clone https://github.com/k9crypt/k9crypt-cli.git
+git clone https://github.com/k9crypt/k9cli.git
 
 # Install dependencies
-cd k9crypt-cli && npm install
+cd k9cli && npm install
 
 # Link for development
 npm link
@@ -178,6 +166,6 @@ K9Crypt CLI is MIT licensed.
 
 Made with ❤️ by the K9Crypt Team
 
-[Report Bug](https://github.com/k9crypt/k9crypt-cli/issues) • [Request Feature](https://github.com/k9crypt/k9crypt-cli/issues)
+[Report Bug](https://github.com/k9crypt/k9cli/issues) • [Request Feature](https://github.com/k9crypt/k9cli/issues)
 
 </div>

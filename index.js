@@ -18,7 +18,7 @@ const store = new Store({
 });
 
 program
-    .version('0.1.3')
+    .version('0.1.5')
     .description('A CLI tool for K9Crypt, offering encrypted real-time chat rooms, message encryption/decryption, and room management.');
 
 program
@@ -95,9 +95,15 @@ program
 program
     .command('list')
     .description('List available rooms')
-    .action(async () => {
+    .option('-t, --type <type>', 'Filter by room type (public/private)')
+    .option('-m, --minUsers <minUsers>', 'Filter by minimum number of users')
+    .option('-s, --sort <sort>', 'Sort by users, messages, newest, or activity')
+    .option('-p, --page <page>', 'Page number', '1')
+    .option('-l, --limit <limit>', 'Rooms per page', '20')
+    .action(async (options) => {
         try {
-            await listRooms();
+            const { type, minUsers, sort, page, limit } = options;
+            await listRooms({ type, minUsers, sort, page, limit });
         } catch (error) {
             process.exit(1);
         }

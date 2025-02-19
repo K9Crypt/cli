@@ -1,6 +1,6 @@
 {
-  "name": "k9crypt-cli",
-  "version": "0.1.3",
+  "name": "k9cli",
+  "version": "0.1.5",
   "description": "Command-line tool that provides a secure and encrypted real-time chat experience. It ensures secure communication with end-to-end encryption, private/public room options, different room lifetimes, and a user-friendly interface.",
   "main": "index.js",
   "type": "module",
@@ -30,12 +30,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/K9Crypt/k9crypt-cli"
+    "url": "https://github.com/K9Crypt/k9cli"
   },
   "bugs": {
-    "url": "https://github.com/K9Crypt/k9crypt-cli/issues"
+    "url": "https://github.com/K9Crypt/k9cli/issues"
   },
-  "homepage": "https://github.com/K9Crypt/k9crypt-cli#readme",
+  "homepage": "https://github.com/K9Crypt/k9cli#readme",
   "dependencies": {
     "blessed": "^0.1.81",
     "chalk": "^5.4.1",
